@@ -1,9 +1,10 @@
-#!/usr/bin/node
+#!/bin/env node
 
 var http = require('http'),
     express = require('express'),
     fortune = require('./lib/fortune.js'),
     credentials = require('./credentials.js');
+//    getIp = require("./lib/get-ip.js"); 
 
 var app = express();
 
@@ -34,6 +35,11 @@ app.use(function(req, res, next){
     next();
 });
 
+// app.use(function(req,res,next){
+//     console.log('Ip :' + getIp.getClientIP(req) + '\n');
+//     next();
+// })
+
 switch(app.get('env')){
 case 'development':
     app.use(require('morgan')('dev'));
@@ -48,6 +54,7 @@ case 'production':
 var tours = [ { id:0, name: 'hello',price: 99.99},
 	      { id:1, name: "combo", price : 100.09}
 	    ];
+
 app.get('/',function(req,res){
     //res.type('text/plain');
     //res.send('Home Page!');
