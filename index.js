@@ -1,12 +1,17 @@
 #!/bin/env node
+'esversion: 6'
+'use strict'
 
-var http = require('http'),
-    express = require('express'),
-    fortune = require('./lib/fortune.js'),
-    credentials = require('./credentials.js');
+const http = require('http'),
+      vhost = require('vhost'),
+      express = require('express'),
+      connect = require('connect'),
+      fortune = require('./lib/fortune.js'),
+      credentials = require('./credentials.js'),
+      stuff = require('./lib/stuff.js')({options:'my choice'});
 //    getIp = require("./lib/get-ip.js"); 
 
-var app = express();
+const app = express();
 
 var handlebars = require('express3-handlebars')
     .create({defaultLayout:'main'});
@@ -14,9 +19,21 @@ app.engine('handlebars',handlebars.engine);
 app.set('view engine',"handlebars");
 app.set('port',process.env.PORT || 3000);
 
+////app.use(connect.basicAuth)();
+//app.use(require('response-time')());
+
+//app.use(require('morgan')());
+
+//app.use(require('method-override')());
+app.use(require('errorhandler')());
+//app.use(require('express-session')());
+//app.use(require('csurf')());
+//app.use(require('static-favicon')('./public/favicon.ico'));
 app.use(require('cookie-parser')(credentials.cookieSecret));
+app.use(require('body-parser')());
 //app.use(require('express-session')());
 app.use(express.static(__dirname + '/public'));
+//app.use(connect.compress);//gzip
 //console.log(express.static());
 
 app.use(function(req,res,next){
@@ -34,6 +51,9 @@ app.use(function(req, res, next){
     console.log('processing request for "' + req.url+'"...');
     next();
 });
+
+app.use(stuff.m1);
+app.use(stuff.m2);
 
 // app.use(function(req,res,next){
 //     console.log('Ip :' + getIp.getClientIP(req) + '\n');
@@ -82,6 +102,71 @@ app.get('/tours/hood-river', function(req,res){
 });
 app.get('/tours/request-group-rate', function(req,res){
     res.render('tours/request-group-rate');
+});
+
+
+
+var Vacation = require('./models/vacation.js');
+
+var mongoose = require('mongoose'),
+    opts = {
+	server:{
+	    socketOptions:{keepAlive:1}
+	}
+    };
+
+//const mongoose = require('mongoose');
+
+mongoose.connect('mongodb://localhost:27017/test');
+const con = mongoose.connection;
+con.on('error', console.error.bind(console, '连接数据库失败'));
+
+console.log('connect success');
+
+app.get('/vacations',function(req,res){
+    Vacation.find({avaliable:true},function(err,vacations){
+	var context = {
+	    vacations:vacations.map(function(vacation){
+		return {
+		    name:vacation.name,
+		    description:vacation.description,
+		    inSeason:vacation.inSeason,
+		    sku:vacation.sku,
+		    price:vacation.getDisplayPrice(),
+		}})
+	};
+	res.render('vacations',context);
+    });
+});
+
+var VacationInSeasonListener = require('./models/vacationInSeasonListener.js');
+
+app.get('/notify-me-when-in-season',function(req,res){
+    res.render('notify-me-when-in-season',{ sku:req.query.sku });
+});
+app.post('/notify-me-when-in-season',function(req,res){
+    VacationInSeasonListener.update(
+	{ email: req.body.email },
+	{ $push: { skus: req.body.sku } },
+	{ upsert: true },
+	function(err){
+	    if(err){
+		console.error(err.stack);
+		req.body.flash = {
+		    type: 'danger',
+		    intro: 'Ooops!',
+		    message:'There was an error processing your request.',
+		};
+		return res.redirect(303,'vacations');
+	    };
+	    req.body.flash = {
+		type: 'success',
+		intro: 'Thank you!',
+		message: 'You will be notified when this vacation is in season.',
+	    };
+	    return res.redirect(303,'/vacations');
+	}
+    );
 });
 
 app.use(function(req,res){
