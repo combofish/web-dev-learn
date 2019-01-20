@@ -8,6 +8,8 @@ const http = require('http'),
       connect = require('connect'),
       fortune = require('./lib/fortune.js'),
       credentials = require('./credentials.js'),
+      fs = require('fs'),
+      routes = require('./routes.js'),
       stuff = require('./lib/stuff.js')({options:'my choice'});
 //    getIp = require("./lib/get-ip.js"); 
 
@@ -47,10 +49,10 @@ app.use(function(req,res,next){
     next();
 });
 
-app.use(function(req, res, next){
-    console.log('processing request for "' + req.url+'"...');
-    next();
-});
+// app.use(function(req, res, next){
+//     console.log('processing request for "' + req.url+'"...');
+//     next();
+// });
 
 app.use(stuff.m1);
 app.use(stuff.m2);
@@ -71,19 +73,22 @@ case 'production':
     break;
 }
 
-var tours = [ { id:0, name: 'hello',price: 99.99},
-	      { id:1, name: "combo", price : 100.09}
-	    ];
 
-app.get('/',function(req,res){
+var admin = express.Router();
+app.use(vhost('admin.*',admin));
+
+admin.get('/',function(req,res){
     //res.type('text/plain');
     //res.send('Home Page!');
     res.render('home');
     res.cookie('monster', 'non');
 });
-app.get('/api/tours', function(req,res){
+admin.get('/api/tours', function(req,res){
     res.json(tours);
 });
+
+routes(app);
+
 app.get('/about',function(req,res){
     // res.type('text/plain');
     // res.send('About ');
@@ -104,7 +109,46 @@ app.get('/tours/request-group-rate', function(req,res){
     res.render('tours/request-group-rate');
 });
 
+var formidable = require('formidable');
 
+app.get('/contest/vacation-photo',function(req,res){
+    var now = new Date();
+    res.render('contest/vacation-photo',{
+	year: now.getFullYear(),
+	month: now.getMonth()
+    });
+});
+
+app.post('/contest/vacation-photo/:year/:month', function(req,res){
+    var form = new formidable.IncomingForm();
+    form.parse(req, function(err, fields, files){
+	if (err) return res.redirect(303,'/error');
+	console.log('received fields');
+	console.log(fields);
+	console.log('received files');
+	console.log(files);
+	//	res.redirect(303,'/thank-you');
+	res.json({success:"ok"});
+    });
+});
+
+app.post('/process',function(req,res){
+    if(req.xhr || req.accepts('json', 'html') === 'json'){
+	res.send({success: true });
+    } else {
+	res.redirect(303,'/thank-you');
+    }
+});
+
+app.get('/newsletter',function(req,res){
+    res.render('newsletter',{csrf:'CSRF token goes here.'});
+});
+
+app.post('/pro',function(req,res){
+    console.log(req.query.form,'/n',req.body._csrf,'/n',req.body.name);
+    //    res.redirect(303,'/thank-you');
+    res.json({success:"ok"});
+});
 
 var Vacation = require('./models/vacation.js');
 
@@ -169,6 +213,66 @@ app.post('/notify-me-when-in-season',function(req,res){
     );
 });
 
+var Attraction = require('./models/attraction.js');
+
+// new Attraction({
+//     location:{
+// 	lat:45.526,
+// 	lng:9232.34,
+//     },
+//     name:'The Xi Lake',
+//     description:"In China, built in 1892,six six. love peace",
+//     email:'129sjdl@139.com',
+//     approved:true,
+// }).save();
+
+app.get('/api/attractions',function(req,res){
+    Attraction.find({approved:true}, function(err,attractions){
+	if(err) return res.send(500, 'Error occured: database error.');
+	res.json(attractions.map(function(a){
+	    return {
+		name:a.name,
+		id:a.id,
+		description:a.description,
+		location:a.location,
+	    }
+	}));
+    });
+});
+
+app.get('/api/attraction',function(req,res){
+    res.render('attraction')
+});
+
+app.post('/api/attraction', function(req,res){
+    var a = new Attraction({
+	name:req.body.name,
+	description:req.body.description,
+	location:{ lat: req.body.lat, lng: req.body.lng },
+	history:{ event:'created',
+		  email: req.body.email,
+		  date: new Date(),
+		},
+	approved: false,
+    });
+    a.save(function(err,a){
+	if(err) return res.send(500,'Error occured: database error.');
+	res.json({ id: a.id});
+    })
+});
+
+app.get('/api/attraction/:id',function(req,res){
+
+    Attraction.findById(req.params.id,function(err,a){
+	if(err) return res.send(500,'Error occured, database error.');
+	res.json({
+	    name:a.name,
+	    id:a.id,
+	    description:a.description,
+	    location:a.location,
+	});
+    });
+})
 app.use(function(req,res){
     // res.type('text/plain');
     res.status(404);
