@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "ansi.js": "0.0.5",
     "compress": "^0.99.0",
     "connect": "^3.6.6",
     "connect-rest": "^3.0.29",
