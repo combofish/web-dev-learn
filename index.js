@@ -1,9 +1,11 @@
 #!/usr/bin/node
 
 var http = require('http'),
+    https = require('https'),
+    fs = require('fs'),
     express = require('express'),
-    fortune = require('./lib/fortune.js'),
-    credentials = require('./credentials.js');
+    fortune = require('./lib/fortune.js');
+//credentials = require('./credentials.js');
 
 var app = express();
 
@@ -11,9 +13,10 @@ var handlebars = require('express3-handlebars')
     .create({defaultLayout:'main'});
 app.engine('handlebars',handlebars.engine);
 app.set('view engine',"handlebars");
-app.set('port',process.env.PORT || 3000);
 
-app.use(require('cookie-parser')(credentials.cookieSecret));
+//app.set('port',process.env.PORT || 3000);
+
+//app.use(require('cookie-parser')(credentials.cookieSecret));
 //app.use(require('express-session')());
 app.use(express.static(__dirname + '/public'));
 //console.log(express.static());
@@ -34,16 +37,29 @@ app.use(function(req, res, next){
     next();
 });
 
-switch(app.get('env')){
-case 'development':
-    app.use(require('morgan')('dev'));
-    break;
-case 'production':
-    app.use(require('express-logger')({
-	path:__dirname + '/log/requests.log'
-    }));
-    break;
-}
+app.use(require('express-logger')({
+    path:__dirname + '/log/request.log'}));
+
+// switch(app.get('env')){
+// case 'development':
+//     app.use(require('morgan')('dev'));
+//     break;
+// case 'production':
+//     app.use(require('express-logger')({
+// 	path:__dirname + '/log/requests.log'
+//     }));
+//     break;
+// }
+
+// const httpsOption = { key : fs.readFileSync("/root/use-ssl/combofish.com.key"), cert: fs.readFileSync("/root/use-ssl/combofish.com.pem")}
+
+//根据项目的路径导入生成的证书文件
+var privateKey  = fs.readFileSync('/root/use-ssl/combofish.com.key', 'utf8');
+var certificate = fs.readFileSync('/root/use-ssl/combofish.com.pem', 'utf8');
+var credentials = {key: privateKey, cert: certificate};
+
+var PORT = 80,
+    SSLPORT = 443;
 
 var tours = [ { id:0, name: 'hello',price: 99.99},
 	      { id:1, name: "combo", price : 100.09}
@@ -80,7 +96,7 @@ app.get('/tours/request-group-rate', function(req,res){
 app.use(function(req,res){
     // res.type('text/plain');
     res.status(404);
-    // res.send('404-not found');
+    //    res.send('404-not found');
     res.render('404');
 });
 
@@ -88,7 +104,7 @@ app.use(function(err,req,res,next){
     console.log(err.stack);
     // res.type('text/plain');	
     res.status(500);
-    // res.send('500-Server.errors');
+    //res.send('500-Server.errors');
     res.render('500');
 });
 
@@ -101,8 +117,11 @@ app.use(function(err,req,res,next){
 // });
 
 function startServer(){
-    http.createServer(app).listen(app.get('port'),function(){
-	console.log("Express started in " + app.get('env') + ". \nexpress is on http://localhost:" + app.get('port'));
+    http.createServer(app).listen(PORT,function(){
+	console.log(">>>http: Express started in " + app.get('env') + ". \nexpress is on http://localhost:" + PORT);
+    });
+    https.createServer(credentials,app).listen(SSLPORT,function(){
+	console.log(">>>https: Express started in " + app.get('env') + ". \nexpress is on http://localhost:" + SSLPORT);
     });
 }
 
